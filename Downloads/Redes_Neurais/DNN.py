@@ -32,6 +32,7 @@ caminhos_completos = [os.path.join(caminho_1, p) for p in pastas_colisao] + \
 # ----------------------------
 # 3️⃣ Hiperparâmetros
 # ----------------------------
+num_layers_list = [1, 2]
 hidden_sizes_list = [50, 100, 200, 400]
 epochs_list = [100, 200, 300]
 batch_sizes = [16, 32, 64]
@@ -89,14 +90,16 @@ dados_saida = scaler_saida.fit_transform(dados[colunas_saida].astype(np.float32)
 # 7️⃣ Definir modelo DNN
 # ----------------------------
 class DNNModel(nn.Module):
-    def __init__(self, input_size, hidden_sizes, output_size):
+    def __init__(self, input_size, hidden_size, num_layers, output_size):
         super(DNNModel, self).__init__()
         layers = []
         in_features = input_size
-        for hidden in hidden_sizes:
-            layers.append(nn.Linear(in_features, hidden))
+
+        for i in range(num_layers):
+            layers.append(nn.Linear(in_features, hidden_size))
             layers.append(nn.ReLU())
-            in_features = hidden
+            in_features = hidden_size
+
         layers.append(nn.Linear(in_features, output_size))
         self.model = nn.Sequential(*layers)
 
@@ -118,10 +121,10 @@ melhor_mse = float('inf')
 melhor_config = None
 melhor_modelo = None
 
-param_grid = list(itertools.product(hidden_sizes_list, epochs_list, batch_sizes, test_steps))
+param_grid = list(itertools.product(num_layers_list, hidden_sizes_list, epochs_list, batch_sizes, test_steps))
 
-for hidden_sizes, epochs, batch_size, passos in param_grid:
-    print(f"\nTreinando: hidden_sizes={hidden_sizes}, epochs={epochs}, batch_size={batch_size}, passos={passos}")
+for num_layers, hidden_size, epochs, batch_size, passos in param_grid:
+    print(f"\nTreinando: num_layers={num_layers}, hidden_size={hidden_size}, epochs={epochs}, batch_size={batch_size}, passos={passos}")
 
     # Criar sequências para DNN
     X, y = [], []
@@ -137,7 +140,7 @@ for hidden_sizes, epochs, batch_size, passos in param_grid:
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-    modelo = DNNModel(input_size=X_train.shape[1], hidden_sizes=hidden_sizes, output_size=output_size).to(device)
+    modelo = DNNModel(input_size=X_train.shape[1], hidden_size=hidden_size, num_layers=num_layers, output_size=output_size).to(device)
     criterio = nn.MSELoss()
     otimizador = torch.optim.Adam(modelo.parameters(), lr=0.001)
 
@@ -172,13 +175,13 @@ for hidden_sizes, epochs, batch_size, passos in param_grid:
 
     # Salvar resultados no log
     with open(log_path, "a") as f:
-        f.write(f"Passos: {passos}, Hidden_sizes: {hidden_sizes}, Batch: {batch_size}, Epocas: {epochs}\n")
+        f.write(f"Passos: {passos}, Camadas: {num_layers}, Hidden_size: {hidden_size}, Batch: {batch_size}, Epocas: {epochs}\n")
         f.write(f"MAE: {mae:.6f}, RMSE: {rmse:.6f}, R²: {r2:.6f}, MSE: {mse_val:.6f}\n\n")
 
     # Atualizar melhor modelo
     if mse_val < melhor_mse:
         melhor_mse = mse_val
-        melhor_config = (passos, hidden_sizes, batch_size, epochs)
+        melhor_config = (passos, num_layers, hidden_size, batch_size, epochs)
         melhor_modelo = {k: v.cpu().clone() for k, v in modelo.state_dict().items()}
         melhor_previsoes = previsoes_np
         melhor_reais = reais_np
@@ -186,7 +189,7 @@ for hidden_sizes, epochs, batch_size, passos in param_grid:
     torch.cuda.empty_cache()
 
 # ----------------------------
-# 10️⃣ Salvar CSV com previsões detalhadas
+# 🔟 Salvar CSV com previsões detalhadas
 # ----------------------------
 colunas_csv = []
 for h in range(1, 61):
@@ -206,7 +209,7 @@ df_resultados.to_csv(csv_path, index=False)
 # ----------------------------
 # 11️⃣ Mostrar melhor configuração
 # ----------------------------
-print(f"\n✅ Melhor configuração: Passos {melhor_config[0]}, Hidden_sizes {melhor_config[1]}, Batch {melhor_config[2]}, Epocas {melhor_config[3]}")
+print(f"\n✅ Melhor configuração: Passos {melhor_config[0]}, Camadas {melhor_config[1]}, Hidden_size {melhor_config[2]}, Batch {melhor_config[3]}, Epocas {melhor_config[4]}")
 print(f"MSE: {melhor_mse:.6f}")
 print(f"Resultados detalhados salvos em: {log_path}")
 print(f"CSV com previsões salvo em: {csv_path}")
